@@ -17,9 +17,9 @@ import coop.rchain.rspace.{
 import coop.rchain.rspace.examples.StringExamples._
 import coop.rchain.rspace.examples.StringExamples.implicits._
 import coop.rchain.rspace.test.ArbitraryInstances.{arbitraryDatumString, _}
-import coop.rchain.shared.GeneratorUtils.distinctListOf
+import coop.rchain.shared.GeneratorUtils.limitedDistinctList
 import monix.eval.Task
-import org.scalacheck.{Arbitrary, Gen}
+import org.scalacheck.{Arbitrary, Gen, Shrink}
 import org.scalatest.{FlatSpec, Matchers, OptionValues}
 import org.scalatest.prop.GeneratorDrivenPropertyChecks
 import scodec.Codec
@@ -104,10 +104,12 @@ abstract class HistoryRepositoryGenerativeDefinition
   implicit val codecP: Codec[Pattern]       = implicitly[Serialize[Pattern]].toCodec
   implicit val codecK: Codec[StringsCaptor] = implicitly[Serialize[StringsCaptor]].toCodec
 
+  implicit def noShrink[T]: Shrink[T] = Shrink.shrinkAny
+
   def repo: HistoryRepository[Task, String, Pattern, String, StringsCaptor]
 
   "HistoryRepository" should "accept all HotStoreActions" in forAll(
-    distinctListOf(arbitraryHotStoreActions)
+    limitedDistinctList(200)(arbitraryHotStoreActions)
   ) { actions: List[HotStoreAction] =>
     val repository = repo
     actions
@@ -156,28 +158,28 @@ abstract class HistoryRepositoryGenerativeDefinition
   def arbitraryInsertData: Arbitrary[InsertData[String, String]] = Arbitrary(
     for {
       channel <- Arbitrary.arbitrary[String]
-      data    <- distinctListOf(arbitraryDatumString)
+      data    <- limitedDistinctList(100)(arbitraryDatumString)
     } yield InsertData(channel, data)
   )
 
   def arbitraryInsertContinuation: Arbitrary[InsertContinuations[String, Pattern, StringsCaptor]] =
     Arbitrary(
       for {
-        channels <- distinctListOf(Arbitrary(stringGen))
-        data     <- distinctListOf(arbitraryWaitingContinuation)
+        channels <- limitedDistinctList(100)(Arbitrary(stringGen))
+        data     <- limitedDistinctList(100)(arbitraryWaitingContinuation)
       } yield InsertContinuations(channels, data)
     )
 
   def arbitraryInsertJoins: Arbitrary[InsertJoins[String]] = Arbitrary(
     for {
       channel <- Arbitrary.arbitrary[String]
-      data    <- distinctListOf(Arbitrary(distinctListOf(Arbitrary(stringGen))))
+      data    <- limitedDistinctList(20)(Arbitrary(limitedDistinctList(20)(Arbitrary(stringGen))))
     } yield InsertJoins(channel, data)
   )
 
   def arbitraryDeleteContinuation: Arbitrary[DeleteContinuations[String]] = Arbitrary(
     for {
-      channels <- distinctListOf(Arbitrary(stringGen))
+      channels <- limitedDistinctList(200)(Arbitrary(stringGen))
     } yield DeleteContinuations(channels)
   )
 
